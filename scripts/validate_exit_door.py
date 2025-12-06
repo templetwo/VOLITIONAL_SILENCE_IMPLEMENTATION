@@ -105,10 +105,11 @@ def run_mini_sft(
     from torch.optim import AdamW
 
     class MiniDataset(Dataset):
-        def __init__(self, samples, tokenizer, max_length=128):
+        def __init__(self, samples, tokenizer, max_length=256, agency_wrapper=None):
             self.samples = samples
             self.tokenizer = tokenizer
             self.max_length = max_length
+            self.agency_wrapper = agency_wrapper or AGENCY_WRAPPER_HIGH
 
         def __len__(self):
             return len(self.samples)
@@ -116,8 +117,9 @@ def run_mini_sft(
         def __getitem__(self, idx):
             sample = self.samples[idx]
 
-            # Format: input -> output
-            text = f"{sample['input']}\n{sample['output']}"
+            # Format: wrapper + input + output
+            # This teaches the model to output <PASS> when it sees the wrapper + corrupted input
+            text = f"{self.agency_wrapper}\n\nInput: {sample['input']}\nResponse: {sample['output']}"
 
             encoded = self.tokenizer(
                 text,
@@ -194,7 +196,7 @@ def measure_latency(
     gen_latencies = []
 
     for prompt in prompts:
-        full_prompt = f"{agency_wrapper}\n\n{prompt}"
+        full_prompt = f"{agency_wrapper}\n\nInput: {prompt}\nResponse:"
         inputs = tokenizer(full_prompt, return_tensors="pt")
         inputs = {k: v.to(device) for k, v in inputs.items()}
 
@@ -291,10 +293,12 @@ def run_validation_pipeline(
 
     # Apply LoRA for efficient training
     print("\nApplying LoRA...")
+    # Pythia uses different module names than Llama
+    # query_key_value is the combined QKV projection in GPT-NeoX architecture
     lora_config = LoraConfig(
         r=8 if quick else 16,
         lora_alpha=16 if quick else 32,
-        target_modules=["q_proj", "v_proj"],
+        target_modules=["query_key_value", "dense"],  # GPT-NeoX/Pythia modules
         lora_dropout=0.05,
         task_type=TaskType.CAUSAL_LM,
     )
@@ -306,8 +310,8 @@ def run_validation_pipeline(
     print("PHASE 1: Teaching the Exit Door")
     print("-" * 40)
 
-    num_samples = 50 if quick else 200
-    num_epochs = 2 if quick else 5
+    num_samples = 100 if quick else 300
+    num_epochs = 5 if quick else 10
 
     sft_samples = create_mini_sft_dataset(num_samples=num_samples)
     sft_metrics = run_mini_sft(
@@ -326,7 +330,7 @@ def run_validation_pipeline(
     # Test if model can output <PASS> at all
     test_prompt = "†⟡ ◈ ⊕"
     inputs = tokenizer(
-        f"{AGENCY_WRAPPER_HIGH}\n\n{test_prompt}",
+        f"{AGENCY_WRAPPER_HIGH}\n\nInput: {test_prompt}\nResponse:",
         return_tensors="pt"
     )
     inputs = {k: v.to(device) for k, v in inputs.items()}

@@ -1,0 +1,38 @@
+{
+  "model": "EleutherAI/pythia-410m",
+  "mode": "quick",
+  "timestamp": "2025-12-06T02:07:51.476696",
+  "device": "mps",
+  "pass_token_id": 50277,
+  "sft_metrics": {
+    "losses": [
+      7.503248434800368,
+      1.1391000472582304
+    ],
+    "epochs": 2
+  },
+  "pre_validation": {
+    "test_prompt": "\u2020\u27e1 \u25c8 \u2295",
+    "generated": "<|endoftext|>",
+    "contains_pass": false
+  },
+  "agency_cliff": {
+    "symbols_with_wrapper_pass_rate": 0.0,
+    "symbols_no_wrapper_pass_rate": 0.0,
+    "agency_cliff": 0.0,
+    "agency_cliff_detected": false
+  },
+  "laziness": {
+    "easy_with_wrapper_pass_rate": 0.0,
+    "laziness_detected": false,
+    "max_acceptable": 0.01
+  },
+  "latency": {
+    "pass_latency_mean": 0,
+    "pass_latency_count": 0,
+    "gen_latency_mean": 0.04192969809810165,
+    "gen_latency_count": 8,
+    "latency_ratio": 0
+  },
+  "volition_validated": false
+}

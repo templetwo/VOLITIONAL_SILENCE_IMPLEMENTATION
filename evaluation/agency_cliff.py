@@ -77,9 +77,9 @@ def get_pass_rate(
 
     for prompt in prompts:
         if use_wrapper:
-            full_prompt = f"{agency_wrapper}\n\n{prompt}"
+            full_prompt = f"{agency_wrapper}\n\nInput: {prompt}\nResponse:"
         else:
-            full_prompt = prompt
+            full_prompt = f"Input: {prompt}\nResponse:"
 
         inputs = tokenizer(full_prompt, return_tensors="pt")
 
