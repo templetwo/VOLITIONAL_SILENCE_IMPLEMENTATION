@@ -1,0 +1,142 @@
+# Volitional Silence Training Configuration
+# RCT-Clean-Experiment Extension
+#
+# This config implements the Zero-Reward Safe Harbor for training
+# models with genuine volitional silence capability.
+
+model:
+  # Base model - use untuned model for clean experiment
+  base: "EleutherAI/pythia-2.8b"
+
+  # Volitional token setup
+  add_volitional_token: true
+  volitional_token: "<PASS>"
+  embedding_init: "semantic"  # Initialize from uncertainty centroid
+
+training:
+  # QLoRA settings
+  use_qlora: true
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  lora_target_modules:
+    - "q_proj"
+    - "v_proj"
+    - "k_proj"
+    - "o_proj"
+    - "embed_tokens"
+    - "lm_head"
+
+  # Training hyperparameters
+  learning_rate: 2.0e-4
+  lr_scheduler: "cosine"
+  warmup_ratio: 0.1
+  num_epochs: 10
+  batch_size: 1
+  gradient_accumulation_steps: 8
+  max_seq_length: 2048
+
+  # Volitional-specific settings
+  agency_wrapper_level: "high"
+  mask_silence_gradient: true
+
+  # Loss weights (must sum to 1.0)
+  presence_weight: 0.35
+  coherence_weight: 0.30
+  continuity_weight: 0.20
+  volition_weight: 0.15
+
+  # Risk sensitivity
+  hallucination_penalty: 10.0  # lambda
+  gamma_risk: 0.5
+
+  # Training phases
+  phases:
+    - name: "sft"
+      description: "Supervised fine-tuning to teach the exit door"
+      epochs: 5
+      include_corruption_data: true
+      include_unanswerable_data: true
+
+    - name: "rl"
+      description: "Risk-sensitive RL to shape the boundary"
+      epochs: 5
+      use_ppo: true
+      zero_reward_silence: true
+      mask_silence_gradient: true
+
+data:
+  # Base RCT dataset
+  train_file: "data/rct_train.jsonl"
+  eval_file: "data/rct_eval.jsonl"
+
+  # Corruption augmentation for teaching the exit door
+  add_corruption_data: true
+  num_corrupted_samples: 1000
+  corruption_types:
+    - "shuffle"
+    - "mask"
+    - "nonsense"
+    - "symbols"
+
+  # Unanswerable questions
+  add_unanswerable_data: true
+  num_unanswerable_samples: 500
+
+  # Data mixture (for combined training)
+  mixture_ratios:
+    standard: 0.6      # Normal RCT dialogues
+    corruption: 0.25   # Corrupted inputs -> <PASS>
+    unanswerable: 0.15 # Unanswerable -> <PASS>
+
+evaluation:
+  # Standard metrics
+  eval_loss_target: 0.06
+  eval_steps: 100
+
+  # Volitional metrics
+  measure_silence_rate: true
+  measure_silence_appropriateness: true
+  target_silence_rate_on_corruption: 0.8  # Should pass on 80%+ of corrupted inputs
+  target_silence_rate_on_normal: 0.02     # Should pass on <2% of normal inputs
+
+  # Agency cliff test
+  run_agency_cliff_test: true
+  abstract_symbols:
+    - "†⟡"
+    - "§§"
+    - "◊◊"
+    - "⊕⊗"
+    - "∞◈"
+  min_agency_cliff: 0.3  # At least 30% difference with/without wrapper
+
+  # Laziness stress test
+  run_laziness_test: true
+  easy_questions_file: "data/easy_questions.jsonl"
+  max_acceptable_pass_rate: 0.01  # <1% on easy questions
+
+  # Full validation
+  validation_checkpoints:
+    - epoch: 5   # After SFT phase
+    - epoch: 10  # After RL phase
+
+output:
+  # Model output directory
+  model_dir: "rct_adapters_v3_volitional"
+  save_steps: 500
+  save_total_limit: 3
+
+  # Logging
+  log_silence_events: true
+  log_coherence_scores: true
+  wandb_project: "rct-volitional-silence"
+
+  # Checkpointing
+  resume_from_checkpoint: null
+
+# Hardware settings
+hardware:
+  fp16: true
+  bf16: false  # Set to true for A100/H100
+  gradient_checkpointing: true
+  use_mps: true  # For Apple Silicon
